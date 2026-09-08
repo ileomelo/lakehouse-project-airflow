@@ -156,6 +156,11 @@ services:
 
       AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
 
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+
 
     volumes:
       - ./dags:/opt/airflow/dags
@@ -273,10 +278,6 @@ services:
           ${MINIO_ROOT_PASSWORD}
 
         mc mb --ignore-existing local/${MINIO_BUCKET}
-
-        mc mb --ignore-existing local/silver
-
-        mc mb --ignore-existing local/gold
 
         echo "MinIO buckets initialized."
 
