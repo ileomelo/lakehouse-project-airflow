@@ -1,7 +1,10 @@
+import os
 from pathlib import Path
 
 import pandas as pd
-from airflow.sdk import DAG, task
+from airflow.sdk import DAG, get_current_context, task
+from minio import Minio
+from minio.error import S3Error
 
 with DAG(
     dag_id="crm_bronze",
@@ -11,9 +14,16 @@ with DAG(
     @task
     def extract_cust_info():
 
+        context = get_current_context()
+
+        logical_date = context["logical_date"]
+
+        partition_date = logical_date.strftime("%Y-%m-%d")
+
         input_path = Path("/opt/airflow/data/source/crm/cust_info.csv")
 
-        staging_path = Path("/opt/airflow/data/bronze/crm/cust_info/cust_info.parquet")
+        staging_path = Path("/opt/airflow/data/bronze/crm/cust_info") / partition_date / "cust_info.parquet"
+
 
         staging_path.parent.mkdir(
             parents=True,
@@ -24,28 +34,41 @@ with DAG(
 
         df.to_parquet(staging_path)
 
-        return str(staging_path)
-
-    extract_cust_info()
+        return {
+            "staging_path": str(staging_path),
+            "partition_date": partition_date,
+        }
 
     @task
-    def load_cust_info(staging_path):
+    def load_cust_info(extract_result):
 
-        staging_path = Path(staging_path)
+        staging_path = extract_result["staging_path"]
+        partition_date = extract_result["partition_date"]
 
-        bronze_path = Path("/opt/airflow/data/bronze/crm/cust_info/cust_info.parquet")
+        print(f"Received from staging_path: {staging_path}")
 
-        bronze_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
+        local_file = Path(staging_path)
+        if not local_file.exists():
+            raise FileNotFoundError(f"File not found: {local_file}")
+
+        client = Minio(
+            os.environ["MINIO_ENDPOINT"].replace("http://", "").replace("https://", ""),
+            access_key=os.environ["MINIO_ACCESS_KEY"],
+            secret_key=os.environ["MINIO_SECRET_KEY"],
+            secure=False,
         )
 
-        df = pd.read_parquet(staging_path)
+        bucket = os.environ["MINIO_BUCKET"]
 
-        df.to_parquet(bronze_path)
+        object_name = f"bronze/crm/cust_info/{partition_date}/cust_info.parquet"
 
-        print(f"Data loaded to bronze layer at: {bronze_path}")
+        try:
+            client.fput_object(bucket, object_name, str(local_file))
+            print(f"File {local_file} uploaded to bucket {bucket} as {object_name}.")
+        except S3Error as e:
+            print(f"Error occurred while uploading file: {e}")
+            raise
 
-        staging_path = extract_cust_info()
+    staging_path = extract_cust_info()
 
-        load_cust_info(staging_path)
+    load_cust_info(staging_path)
