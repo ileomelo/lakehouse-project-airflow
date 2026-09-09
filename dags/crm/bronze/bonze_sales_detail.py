@@ -7,12 +7,12 @@ from minio import Minio
 from minio.error import S3Error
 
 with DAG(
-    dag_id="crm_bronze",
+    dag_id="crm_bronze_sales_details",
     schedule=None,
 ) as dag:
 
     @task
-    def extract_cust_info():
+    def extract_sales_details():
 
         context = get_current_context()
 
@@ -20,10 +20,13 @@ with DAG(
 
         partition_date = logical_date.strftime("%Y-%m-%d")
 
-        input_path = Path("/opt/airflow/data/source/crm/cust_info.csv")
+        input_path = Path("/opt/airflow/data/source/crm/sales_details.csv")
 
-        staging_path = Path("/opt/airflow/data/bronze/crm/cust_info") / partition_date / "cust_info.parquet"
-
+        staging_path = (
+            Path("/opt/airflow/data/bronze/crm/sales_details")
+            / partition_date
+            / "sales_details.parquet"
+        )
 
         staging_path.parent.mkdir(
             parents=True,
@@ -40,7 +43,7 @@ with DAG(
         }
 
     @task
-    def load_cust_info(extract_result):
+    def load_sales_details(extract_result):
 
         staging_path = extract_result["staging_path"]
         partition_date = extract_result["partition_date"]
@@ -60,7 +63,7 @@ with DAG(
 
         bucket = os.environ["MINIO_BUCKET"]
 
-        object_name = f"bronze/crm/cust_info/{partition_date}/cust_info.parquet"
+        object_name = f"bronze/crm/sales_details/{partition_date}/sales_details.parquet"
 
         try:
             client.fput_object(bucket, object_name, str(local_file))
@@ -69,6 +72,6 @@ with DAG(
             print(f"Error occurred while uploading file: {e}")
             raise
 
-    staging_path = extract_cust_info()
+    staging_path = extract_sales_details()
 
-    load_cust_info(staging_path)
+    load_sales_details(staging_path)
