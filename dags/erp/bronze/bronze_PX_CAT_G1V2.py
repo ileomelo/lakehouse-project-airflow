@@ -20,7 +20,7 @@ with DAG(
 
         partition_date = logical_date.strftime("%Y-%m-%d")
 
-        input_path = Path("/opt/airflow/data/source/erp/px_cat_g1v2.csv")
+        input_path = Path("/opt/airflow/data/source/erp/PX_CAT_G1V2.csv")
 
         staging_path = (
             Path("/opt/airflow/data/bronze/erp/px_cat_g1v2")
