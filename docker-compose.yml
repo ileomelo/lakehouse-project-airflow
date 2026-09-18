@@ -52,6 +52,9 @@ services:
       AIRFLOW__CORE__MP_START_METHOD: fork
 
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+      
+      PYTHONPATH: /opt/airflow
+
 
     volumes:
       - ./dags:/opt/airflow/dags
@@ -95,6 +98,9 @@ services:
       AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
 
       AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+
+      PYTHONPATH: /opt/airflow
+
 
 
     volumes:
@@ -161,6 +167,9 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
 
+      PYTHONPATH: /opt/airflow
+
+
 
     volumes:
       - ./dags:/opt/airflow/dags
@@ -201,6 +210,9 @@ services:
       AIRFLOW__CORE__MP_START_METHOD: fork
 
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
+
+      PYTHONPATH: /opt/airflow
+
 
     volumes:
       - ./dags:/opt/airflow/dags
