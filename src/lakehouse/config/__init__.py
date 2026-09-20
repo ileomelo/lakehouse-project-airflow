@@ -1,0 +1,2 @@
+"""Configurações compartilhadas da aplicação."""
+
