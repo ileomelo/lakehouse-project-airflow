@@ -53,12 +53,13 @@ services:
 
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
       
-      PYTHONPATH: /opt/airflow
+      PYTHONPATH: /opt/airflow/src
 
 
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
       - ./config:/opt/airflow/config
       - ./tests:/opt/airflow/tests
       - ./logs:/opt/airflow/logs
@@ -99,13 +100,14 @@ services:
 
       AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
 
-      PYTHONPATH: /opt/airflow
+      PYTHONPATH: /opt/airflow/src
 
 
 
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
       - ./config:/opt/airflow/config
       - ./tests:/opt/airflow/tests
       - ./logs:/opt/airflow/logs
@@ -167,13 +169,14 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
 
-      PYTHONPATH: /opt/airflow
+      PYTHONPATH: /opt/airflow/src
 
 
 
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
       - ./config:/opt/airflow/config
       - ./tests:/opt/airflow/tests
       - ./logs:/opt/airflow/logs
@@ -211,12 +214,13 @@ services:
 
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: "admin:admin"
 
-      PYTHONPATH: /opt/airflow
+      PYTHONPATH: /opt/airflow/src
 
 
     volumes:
       - ./dags:/opt/airflow/dags
       - ./scripts:/opt/airflow/scripts
+      - ./src:/opt/airflow/src
       - ./config:/opt/airflow/config
       - ./tests:/opt/airflow/tests
       - ./logs:/opt/airflow/logs
