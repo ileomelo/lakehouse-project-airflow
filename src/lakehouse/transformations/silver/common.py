@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -15,12 +15,11 @@ from lakehouse.infrastructure.object_storage import configure_duckdb_s3
 @contextmanager
 def duckdb_connection(
     bronze_path: str, silver_path: str
-) -> Iterator[duckdb.DuckDBPyConnection]:
+) -> Generator[duckdb.DuckDBPyConnection, None, None]:
     """Abre DuckDB, configura S3 quando necessário e fecha a conexão."""
-    if not bronze_path.startswith("s3://"):
-        if not Path(bronze_path).exists():
-            raise FileNotFoundError(f"Arquivo Bronze não encontrado: {bronze_path}")
-    if not silver_path.startswith("s3://"):
+    if not bronze_path.startswith("s3://") and not Path(bronze_path).exists():
+        raise FileNotFoundError(f"Arquivo Bronze não encontrado: {bronze_path}")
+    if not silver_path.startswith("s3://") and not Path(silver_path).exists():
         Path(silver_path).parent.mkdir(parents=True, exist_ok=True)
 
     con = duckdb.connect()
