@@ -19,11 +19,15 @@ Pipeline de dados em camadas Bronze/Silver usando Apache Airflow, DuckDB, Parque
 ```
 
 ## Execução local
+### Pipeline  - SILVER - 
 
 ```powershell
-& .\\.venv\\Scripts\\python.exe -m lakehouse.transformations.silver.crm_sales_details
-pytest
+docker compose exec airflow-scheduler python -m lakehouse.pipelines.silver
 ```
+
+O comando da Silver executa todas as transformações em sequência, usando a partição
+do dia atual e exibindo no terminal o progresso, a duração e a quantidade de registros
+de cada dataset. Para reprocessar outra partição, use `--partition-date YYYY-MM-DD`.
 
 Sem `MINIO_BUCKET`, a transformação usa os arquivos locais em `data/`. Com as variáveis
 `MINIO_*` configuradas, utiliza os caminhos S3 do MinIO.
@@ -32,6 +36,13 @@ Sem `MINIO_BUCKET`, a transformação usa os arquivos locais em `data/`. Com as 
 
 ```powershell
 docker compose up --build
+```
+
+
+### Para login no Airflow
+Procure por -> "Simple auth manager | Password for user 'admin':"
+```powershell
+docker compose logs airflow-apiserver
 ```
 
 As DAGs importam o pacote pelo diretório `src`; a pasta `dags` não contém regra de negócio.

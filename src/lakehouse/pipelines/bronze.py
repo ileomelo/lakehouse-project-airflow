@@ -6,10 +6,11 @@ import os
 from pathlib import Path
 
 import pandas as pd
-from airflow.sdk import DAG, get_current_context, task
+from airflow.sdk import DAG, task
 from minio.error import S3Error
 
 from lakehouse.config.catalog import DatasetConfig
+from lakehouse.config.partition import current_partition_date
 from lakehouse.infrastructure.object_storage import get_minio_client
 
 
@@ -29,8 +30,10 @@ def build_bronze_dag(
 
         @task
         def extract(dataset: DatasetConfig) -> dict[str, str]:
-            partition_date = get_current_context()["logical_date"].strftime("%Y-%m-%d")
-            input_path = Path(f"/opt/airflow/data/source/{source}/{dataset.source_file}")
+            partition_date = current_partition_date()
+            input_path = Path(
+                f"/opt/airflow/data/source/{source}/{dataset.source_file}"
+            )
             staging_path = (
                 Path("/opt/airflow/data/bronze")
                 / source
@@ -52,7 +55,9 @@ def build_bronze_dag(
         def load(extract_result: dict[str, str]) -> None:
             local_file = Path(extract_result["staging_path"])
             if not local_file.exists():
-                raise FileNotFoundError(f"Arquivo de staging não encontrado: {local_file}")
+                raise FileNotFoundError(
+                    f"Arquivo de staging não encontrado: {local_file}"
+                )
 
             object_name = (
                 f"bronze/{source}/{extract_result['name']}/"
@@ -67,7 +72,6 @@ def build_bronze_dag(
 
         for dataset in datasets:
             extracted = extract.override(task_id=f"extract_{dataset.name}")(dataset)
-            load.override(task_id=f"load_{dataset.name}")(extracted)
+            load.override(task_id=f"load_{dataset.name}")(extracted)  # ty: ignore[invalid-argument-type]
 
     return dag
-

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import duckdb
 
+from lakehouse.config.partition import current_partition_date
 from lakehouse.infrastructure.object_storage import configure_duckdb_s3
 
 
@@ -40,7 +41,9 @@ def default_paths(
     source: str, dataset: str, partition_date: str | None = None
 ) -> tuple[str, str]:
     """Monta os caminhos Bronze/Silver locais ou do MinIO."""
-    date = partition_date or os.environ.get("PARTITION_DATE", "2026-09-20")
+    date = (
+        partition_date or os.environ.get("PARTITION_DATE") or current_partition_date()
+    )
     bucket = os.environ.get("MINIO_BUCKET")
     base = f"s3://{bucket}" if bucket else "data"
     relative_path = f"{source}/{dataset}/{date}/{dataset}.parquet"
