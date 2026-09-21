@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
-import duckdb
-
-from lakehouse.infrastructure.object_storage import configure_duckdb_s3
+from lakehouse.transformations.silver.common import (
+    default_paths as build_default_paths,
+)
+from lakehouse.transformations.silver.common import (
+    duckdb_connection,
+    parquet_row_count,
+)
 
 
 def transform_product_info(bronze_path: str, silver_path: str) -> int:
     """Normaliza chaves, categorias, custos e vigências dos produtos."""
-    if not silver_path.startswith("s3://"):
-        Path(silver_path).parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect()
-    try:
-        if bronze_path.startswith("s3://") or silver_path.startswith("s3://"):
-            configure_duckdb_s3(con)
+    with duckdb_connection(bronze_path, silver_path) as con:
         con.execute(
             f"""
             COPY (
@@ -45,22 +41,12 @@ def transform_product_info(bronze_path: str, silver_path: str) -> int:
             ) TO '{silver_path}' (FORMAT PARQUET, OVERWRITE_OR_IGNORE TRUE)
             """
         )
-        return con.execute(
-            f"SELECT count(*) FROM read_parquet('{silver_path}')"
-        ).fetchone()[0]  # ty: ignore[not-subscriptable]
-    finally:
-        con.close()
+        return parquet_row_count(con, silver_path)
 
 
 def default_paths(partition_date: str | None = None) -> tuple[str, str]:
     """Monta os caminhos da partição local ou do MinIO."""
-    date = partition_date or os.environ.get("PARTITION_DATE", "2026-09-20")
-    bucket = os.environ.get("MINIO_BUCKET")
-    base = f"s3://{bucket}" if bucket else "data"
-    return (
-        f"{base}/bronze/crm/prd_info/{date}/prd_info.parquet",
-        f"{base}/silver/crm/prd_info/{date}/prd_info.parquet",
-    )
+    return build_default_paths("crm", "prd_info", partition_date)
 
 
 def main() -> None:
