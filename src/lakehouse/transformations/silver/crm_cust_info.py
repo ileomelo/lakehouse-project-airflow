@@ -2,70 +2,105 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
+from lakehouse.transformations.silver.common import (
+    default_paths as build_default_paths,
+)
+from lakehouse.transformations.silver.common import (
+    duckdb_connection,
+    parquet_row_count,
+)
 
-import pandas as pd
 
-
-def transform_customer_info(
-    bronze_path: str, silver_path: str, storage_options: dict
-) -> int:
+def transform_customer_info(bronze_path: str, silver_path: str) -> int:
     """Limpa clientes, mantém o registro mais recente por ID e grava Parquet."""
-    df = pd.read_parquet(bronze_path, storage_options=storage_options)
-    df["cst_create_date"] = pd.to_datetime(df["cst_create_date"], errors="coerce")
-    df = df.dropna(subset=["cst_id"]).copy()
-    df["cst_id"] = df["cst_id"].astype("int64")
-    df = df.sort_values("cst_create_date", ascending=False).drop_duplicates(
-        subset="cst_id", keep="first"
-    )
-
-    for column in ("cst_firstname", "cst_lastname"):
-        df[column] = (
-            df[column]
-            .astype("string")
-            .str.strip()
-            .str.replace(r"\s+", " ", regex=True)
-            .str.title()
-            .replace("", pd.NA)
+    with duckdb_connection(bronze_path, silver_path) as con:
+        con.execute(
+            f"""
+            COPY (
+                WITH typed AS (
+                    SELECT
+                        cast(cst_id AS BIGINT) AS cst_id,
+                        cst_key,
+                        cst_firstname,
+                        cst_lastname,
+                        cst_marital_status,
+                        cst_gndr,
+                        try_cast(cst_create_date AS DATE) AS cst_create_date
+                    FROM read_parquet('{bronze_path}')
+                    WHERE cst_id IS NOT NULL
+                ),
+                latest AS (
+                    SELECT *
+                    FROM typed
+                    QUALIFY row_number() OVER (
+                        PARTITION BY cst_id
+                        ORDER BY cst_create_date DESC NULLS LAST
+                    ) = 1
+                ),
+                cleaned_names AS (
+                    SELECT
+                        *,
+                        nullif(
+                            array_to_string(
+                                list_transform(
+                                    string_split(
+                                        regexp_replace(trim(cst_firstname), '\\s+', ' ', 'g'),
+                                        ' '
+                                    ),
+                                    word -> upper(left(word, 1)) || lower(substr(word, 2))
+                                ),
+                                ' '
+                            ),
+                            ''
+                        ) AS clean_firstname,
+                        nullif(
+                            array_to_string(
+                                list_transform(
+                                    string_split(
+                                        regexp_replace(trim(cst_lastname), '\\s+', ' ', 'g'),
+                                        ' '
+                                    ),
+                                    word -> upper(left(word, 1)) || lower(substr(word, 2))
+                                ),
+                                ' '
+                            ),
+                            ''
+                        ) AS clean_lastname
+                    FROM latest
+                )
+                SELECT
+                    cst_id,
+                    cst_key,
+                    coalesce(clean_firstname, 'n/a') AS cst_firstname,
+                    coalesce(clean_lastname, 'n/a') AS cst_lastname,
+                    CASE cst_marital_status
+                        WHEN 'S' THEN 'Single'
+                        WHEN 'M' THEN 'Married'
+                        ELSE 'Unknown'
+                    END AS cst_marital_status,
+                    CASE cst_gndr
+                        WHEN 'M' THEN 'Male'
+                        WHEN 'F' THEN 'Female'
+                        ELSE 'Unknown'
+                    END AS cst_gndr,
+                    cst_create_date,
+                    clean_firstname IS NULL OR clean_lastname IS NULL
+                        AS dq_missing_name_flag
+                FROM cleaned_names
+            ) TO '{silver_path}' (FORMAT PARQUET, OVERWRITE_OR_IGNORE TRUE)
+            """
         )
-    df["dq_missing_name_flag"] = df["cst_firstname"].isna() | df["cst_lastname"].isna()
-    df[["cst_firstname", "cst_lastname"]] = df[
-        ["cst_firstname", "cst_lastname"]
-    ].fillna("n/a")
-    df["cst_gndr"] = df["cst_gndr"].map({"M": "Male", "F": "Female"}).fillna("Unknown")
-    df["cst_marital_status"] = (
-        df["cst_marital_status"].map({"S": "Single", "M": "Married"}).fillna("Unknown")
-    )
-    df.to_parquet(silver_path, index=False, storage_options=storage_options)
-    return len(df)
+        return parquet_row_count(con, silver_path)
 
 
 def default_paths(partition_date: str | None = None) -> tuple[str, str]:
     """Monta os caminhos da partição local ou do MinIO."""
-    date = partition_date or os.environ.get("PARTITION_DATE", "2026-09-20")
-    bucket = os.environ.get("MINIO_BUCKET")
-    base = f"s3://{bucket}" if bucket else "data"
-    return (
-        f"{base}/bronze/crm/cust_info/{date}/cust_info.parquet",
-        f"{base}/silver/crm/cust_info/{date}/cust_info.parquet",
-    )
+    return build_default_paths("crm", "cust_info", partition_date)
 
 
 def main() -> None:
     bronze_path, silver_path = default_paths()
-    if not bronze_path.startswith("s3://"):
-        Path(silver_path).parent.mkdir(parents=True, exist_ok=True)
-
-    storage_options = {}
-    if bronze_path.startswith("s3://"):
-        storage_options = {
-            "key": os.environ["MINIO_ACCESS_KEY"],
-            "secret": os.environ["MINIO_SECRET_KEY"],
-            "client_kwargs": {"endpoint_url": os.environ["MINIO_ENDPOINT"]},
-        }
-
-    count = transform_customer_info(bronze_path, silver_path, storage_options)
+    count = transform_customer_info(bronze_path, silver_path)
     print(f"Arquivo Silver salvo em: {silver_path}")
     print(f"Registros persistidos: {count}")
 
