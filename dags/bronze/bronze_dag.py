@@ -6,5 +6,5 @@ from lakehouse.config.catalog import SOURCE_CATALOG
 from lakehouse.pipelines.bronze import build_bronze_dag
 
 for source_name, datasets in SOURCE_CATALOG.items():
-    dag = build_bronze_dag(source=source_name, datasets=datasets)
+    dag = build_bronze_dag(source=source_name, datasets=datasets, schedule="@daily")
     globals()[dag.dag_id] = dag
